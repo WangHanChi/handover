@@ -56,6 +56,60 @@ docker load -i debian-arm64-cortex-a76-bookworm-slim.tar
 
 ---
 
+## 3b. 沒有任何工具的 Windows:用瀏覽器抓別人 build 好的(`docker import` 路線)
+
+有些 Windows 環境**不能安裝任何軟體**(連 `crane.exe` 都不行),只能用瀏覽器下載。
+這時別找「`docker save` 出來的 image tar」(幾乎沒有官方來源可直接下載),改抓
+**rootfs 檔案系統 tarball**——官方就有瀏覽器可直接點的連結,拿到目標機器後用
+`docker import`(不是 `docker load`)就能變成 image。
+
+| | `docker load` | `docker import` |
+|---|---|---|
+| 吃的檔案 | `docker save` 格式(含 manifest/layer 結構) | 純檔案系統 tarball(rootfs) |
+| 瀏覽器可直接下載 | 幾乎沒有官方來源 | ✅ 官方發行站就有 |
+| 適合純淨 base OS | 可以 | **完全夠用**(base 沒有要保留的 CMD/ENV) |
+
+> `docker import` 會把 rootfs 包成單層 image,**tag 由你自己指定**。
+
+### 三個官方、瀏覽器可直接下載的 arm64 來源
+
+1. **Debian**(對應本專案這顆,最一致)——官方 `debian` image 的 rootfs 來源:
+   `https://github.com/debuerreotype/docker-debian-artifacts`
+   切到 **`arm64v8` 分支** → 進 `bookworm/slim/` → 下載 `rootfs.tar.xz`。
+
+2. **Ubuntu base**(官方就是設計來幹這件事):
+   `https://cdimage.ubuntu.com/ubuntu-base/releases/`
+   選版本 → `release/` → 抓 `ubuntu-base-<ver>-base-arm64.tar.gz`。
+
+3. **Alpine minirootfs**(最小 ~3MB):
+   `https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/aarch64/`
+   抓 `alpine-minirootfs-<ver>-aarch64.tar.gz`。
+   > ⚠️ Alpine 是 **musl 不是 glibc**(同前面提醒),glibc 連結的 binary 會出問題;
+   > 要跑既有 glibc binary 請選 Debian / Ubuntu。
+
+### 流程(Windows 不裝任何軟體)
+
+```bash
+# 1. Windows 瀏覽器到上面任一連結,下載 rootfs tarball
+# 2. 放 USB / SD / scp 搬到目標 arm64 機器
+# 3. 在目標 arm64 機器上 import(tag 自己取):
+
+# Debian:
+docker import - debian:bookworm-slim < rootfs.tar.xz
+# Ubuntu:
+docker import ubuntu-base-24.04-base-arm64.tar.gz ubuntu:24.04-base
+
+# 4. 驗證
+docker run --rm -it debian:bookworm-slim bash
+```
+
+> 提醒:這幾個來源給的是**上游 rootfs**,不是本專案這顆有 `LABEL`、`docker save` 格式的
+> 特定版本。只是要「一顆能跑的 arm64 Debian base」時用此備案即可(內容本質上跟本專案
+> build 的同一份上游 rootfs);若需要本專案的特定版本,仍請從 GitHub Release 抓
+> `*.tar` / `*.tar.gz` 走第 3 節的 `docker load`。
+
+---
+
 ## 4. Docker 常用指令速查(免再查文件)
 
 ### 匯入 / 檢視 image
